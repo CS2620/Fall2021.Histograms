@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.awt.Color;
 
-
 public class Processor {
 
   BufferedImage image;
@@ -19,6 +18,10 @@ public class Processor {
     } catch (IOException ex) {
       ex.printStackTrace();
     }
+  }
+
+  public Processor(BufferedImage bi){
+    this.image = bi;
   }
 
   public Processor save(String filename) {
@@ -65,7 +68,8 @@ public class Processor {
   public Processor scaleNearestNeighbor(double scaleX, double scaleY) {
     int newWidth = (int) (this.image.getWidth() * scaleX);
     int newHeight = (int) (this.image.getHeight() * scaleY);
-    BufferedImage toReturn = new BufferedImage(this.image.getWidth(), this.image.getHeight(), BufferedImage.TYPE_INT_ARGB);
+    BufferedImage toReturn = new BufferedImage(this.image.getWidth(), this.image.getHeight(),
+        BufferedImage.TYPE_INT_ARGB);
 
     for (int y = 0; y < newHeight; y++) {
       for (int x = 0; x < newWidth; x++) {
@@ -91,8 +95,7 @@ public class Processor {
         int originalX = (int) (x - i + .5);
         int originalY = (int) (y - j + .5);
 
-        if (originalX < 0 || originalX >= this.image.getWidth() || originalY < 0
-            || originalY >= this.image.getHeight())
+        if (originalX < 0 || originalX >= this.image.getWidth() || originalY < 0 || originalY >= this.image.getHeight())
           continue;
 
         var pixelInt = this.image.getRGB(originalX, originalY);
@@ -158,39 +161,129 @@ public class Processor {
 
   }
 
-  public Processor histogram(){
-    int height = 100;
+  public Processor histogram() {
+    return histogram(-1);
+  }
+
+  public Processor histogram(int cap)
+  {
+
+
+    int height = 300;
     var toReturn = new BufferedImage(256, height, BufferedImage.TYPE_4BYTE_ABGR);
 
-    //Generate the histogram info
+    // Generate the histogram info
     int[] counts = new int[256];
-    for(var h = 0; h < this.image.getHeight(); h++){
-      for(var w = 0; w < this.image.getWidth(); w++){
+    for (var h = 0; h < this.image.getHeight(); h++) {
+      for (var w = 0; w < this.image.getWidth(); w++) {
         Color pixel = new Color(this.image.getRGB(w, h));
         int red = pixel.getRed();
         int green = pixel.getGreen();
         int blue = pixel.getBlue();
-        int value = (int) ((red + green + blue) / 3.0);
+        float[] hsv = new float[3];
+        myConversion(red, green, blue, hsv);
+        int value = (int)(hsv[2]*255);
+        if(value == 1)
+          System.out.println();
         counts[value]++;
-        
 
       }
     }
 
-    //Render the histogram
-    Graphics2D g = (Graphics2D)toReturn.getGraphics();
+    // Render the histogram
+    Graphics2D g = (Graphics2D) toReturn.getGraphics();
     g.setColor(Color.BLACK);
     g.fillRect(0, 0, counts.length, height);
 
     var maxValue = Arrays.stream(counts).max().orElse(0);
-    for(var i = 0; i < counts.length; i++){
-      int percent = (int) (counts[i]/(double) maxValue * height);
+    if(cap != -1) maxValue = cap;
+    for (var i = 0; i < counts.length; i++) {
+      int percent = (int) (counts[i] / (double) maxValue * height);
       g.setColor(Color.WHITE);
-      g.fillRect(i, height-percent, i+1, percent);
+      g.fillRect(i, height - percent, 1, percent);
     }
 
-    this.image = toReturn;
+    //this.image = toReturn;
+    //return this;
+    return new Processor(toReturn);
+
+  }
+
+  private static void myConversion(int r, int g, int b, float[] hsv) {
+    float hue = -1;
+    float saturation = -1;
+    float value = -1;
+
+    float red = (float) (r / 255.0);
+    float green = (float) (g / 255.0);
+    float blue = (float) (b / 255.0);
+
+    float cMax = Math.max(Math.max(red, green), blue);
+    value = cMax;
+    float cMin = Math.min(Math.min(red, green), blue);
+    float delta = cMax - cMin;
+
+    if (cMax == 0) {
+      hue = 0;
+      value = 0;
+      saturation = 0;
+    } else {
+      if (delta == 0) {
+        hue = 0;
+        saturation = (cMax - cMin) / cMax;
+
+      } else {
+
+        saturation = (cMax - cMin) / cMax;
+
+        if (cMax == red)
+          hue = (60 * (green - blue) / delta + 0) % 360;
+        else if (cMax == green)
+          hue = (60 * (blue - red) / delta + 120) % 360;
+        else if (cMax == blue)
+          hue = (60 * (red - green) / delta + 240) % 360;
+
+        hue /= 360;
+      }
+    }
+
+    // Stuff
+
+    hsv[0] = hue;
+    hsv[1] = saturation;
+    hsv[2] = value;
+
+  }
+
+  public Processor brighten(int i) {
+
+    for (var h = 0; h < this.image.getHeight(); h++) {
+      for (var w = 0; w < this.image.getWidth(); w++) {
+        if(h == 375 && w == 179){
+          System.out.println();
+        }
+        var pixelInt = this.image.getRGB(w, h);
+        var pixelColor = new Color(pixelInt);
+
+        float[] hsv = new float[3];
+
+        myConversion(pixelColor.getRed(), pixelColor.getGreen(), pixelColor.getBlue(), hsv);
+
+        var value = hsv[2];
+        value += i/255.0f;
+        value = Math.min(1.0f, Math.max(0, value));
+        var newColor = Color.getHSBColor(hsv[0], hsv[1], value);
+
+        float[] again = new float[3];
+        myConversion(newColor.getRed(), newColor.getGreen(), newColor.getBlue(), again);
+
+        
+
+        this.image.setRGB(w,h,newColor.getRGB());
+      }
+    }
+
+
     return this;
-    
   }
 }
